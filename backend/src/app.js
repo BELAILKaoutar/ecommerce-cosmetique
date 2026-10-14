@@ -1,6 +1,7 @@
 
 import express from "express";
 import categoryRoutes from "./routes/category.routes.js";
+import productRoutes from "./routes/product.routes.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 
 const app = express();
@@ -17,6 +18,9 @@ app.get("/", (req, res) => {
 
 // Routes des catégories
 app.use("/api/categories", categoryRoutes);
+
+// Routes des produits
+app.use("/api/products", productRoutes);
 
 // Gestion des erreurs
 app.use(errorMiddleware);
