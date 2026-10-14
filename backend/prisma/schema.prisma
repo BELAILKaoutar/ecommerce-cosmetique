@@ -18,10 +18,13 @@ model Category {
   @@map("categories")
 }
 
+
+
 model Product {
   id          String   @id @default(uuid()) @db.Uuid
   name        String   @db.VarChar(200)
   description String?
+  usageAdvice String?
   price       Decimal  @db.Decimal(10, 2)
   stock       Int      @default(0)
   imageUrl    String?
