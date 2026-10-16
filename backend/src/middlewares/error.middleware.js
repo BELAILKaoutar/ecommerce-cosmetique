@@ -1,10 +1,12 @@
 
 export function errorMiddleware(error, req, res, next) {
-  console.error(error);
+  if (!error.statusCode || error.statusCode >= 500) {
+    console.error(error);
+  }
 
   if (error.code === "P2002") {
     return res.status(409).json({
-      message: "Cette catégorie existe déjà",
+      message: "Cette ressource existe déjà",
     });
   }
 

@@ -4,9 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test --test-timeout=30000 tests/delivery.test.js tests/order-number.test.js tests/orders.test.js",
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "prisma:seed": "node prisma/seed.js"
   },
   "keywords": [],
   "author": "",
@@ -15,13 +16,16 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^18.0.7",
     "express": "^5.3.0",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.14",
-    "prisma": "^7.10.0"
+    "prisma": "^7.10.0",
+    "supertest": "^7.3.1"
   }
 }
