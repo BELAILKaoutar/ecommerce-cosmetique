@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,18 +8,16 @@ datasource db {
 }
 
 model Category {
-  id          String    @id @default(uuid()) @db.Uuid
-  name        String    @unique @db.VarChar(100)
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(100)
   description String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  products    Product[]
+  products Product[]
 
   @@map("categories")
 }
-
-
 
 model Product {
   id          String   @id @default(uuid()) @db.Uuid
@@ -30,13 +29,13 @@ model Product {
   imageUrl    String?
   isActive    Boolean  @default(true)
 
-  categoryId  String   @db.Uuid
-  category    Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  categoryId String   @db.Uuid
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  orderItems  OrderItem[]
+  orderItems OrderItem[]
 
   @@index([categoryId])
   @@map("products")
@@ -78,7 +77,7 @@ model Order {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
-  items         OrderItem[]
+  items OrderItem[]
 
   @@index([status])
   @@index([createdAt])
@@ -109,8 +108,30 @@ model Service {
   price           Decimal? @db.Decimal(10, 2)
   isActive        Boolean  @default(true)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointmentSlots AppointmentSlot[]
 
   @@map("services")
+}
+
+model AppointmentSlot {
+  id        String   @id @default(uuid()) @db.Uuid
+
+  serviceId String   @db.Uuid
+  service   Service  @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  startAt   DateTime
+  endAt     DateTime
+  capacity  Int      @default(1)
+  isActive  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([serviceId])
+  @@index([startAt])
+  @@index([serviceId, startAt])
+  @@map("appointment_slots")
 }
