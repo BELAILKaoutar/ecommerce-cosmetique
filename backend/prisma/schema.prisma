@@ -100,3 +100,17 @@ model OrderItem {
   @@index([productId])
   @@map("order_items")
 }
+
+model Service {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String   @db.VarChar(200)
+  description     String?
+  durationMinutes Int?
+  price           Decimal? @db.Decimal(10, 2)
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("services")
+}

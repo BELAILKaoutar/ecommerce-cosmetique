@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test --test-timeout=30000 tests/delivery.test.js tests/order-number.test.js tests/orders.test.js",
+    "test": "node --test --test-timeout=30000 tests/*.test.js",
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "prisma:seed": "node prisma/seed.js"
@@ -21,7 +21,9 @@
     "dotenv": "^18.0.7",
     "express": "^5.3.0",
     "jsonwebtoken": "^9.0.3",
-    "pg": "^8.23.1"
+    "pg": "^8.23.1",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.14",
