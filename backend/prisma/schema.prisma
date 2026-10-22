@@ -116,11 +116,12 @@ model Service {
   @@map("services")
 }
 
-model AppointmentSlot {
-  id        String   @id @default(uuid()) @db.Uuid
 
-  serviceId String   @db.Uuid
-  service   Service  @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+model AppointmentSlot {
+  id        String  @id @default(uuid()) @db.Uuid
+
+  serviceId String  @db.Uuid
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
 
   startAt   DateTime
   endAt     DateTime
@@ -130,8 +131,35 @@ model AppointmentSlot {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  appointments Appointment[]
+
   @@index([serviceId])
   @@index([startAt])
   @@index([serviceId, startAt])
   @@map("appointment_slots")
 }
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+model Appointment {
+  id           String            @id @default(uuid()) @db.Uuid
+  slotId       String            @db.Uuid
+  slot         AppointmentSlot   @relation(fields: [slotId], references: [id], onDelete: Restrict)
+
+  customerName String            @db.VarChar(200)
+  phone        String            @db.VarChar(30)
+  status       AppointmentStatus @default(PENDING)
+
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([slotId])
+  @@index([status])
+  @@map("appointments")
+}
+

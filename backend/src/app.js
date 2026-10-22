@@ -24,6 +24,8 @@ import {
   adminAppointmentSlotRouter,
 } from "./routes/appointment-slot.routes.js";
 
+import appointmentRoutes from "./routes/appointment.routes.js";
+
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 
 const app = express();
@@ -39,7 +41,11 @@ app.use(express.json());
 app.use(
   "/api-docs",
   swaggerUi.serve,
-  swaggerUi.setup(swaggerSpec)
+  swaggerUi.setup(swaggerSpec, {
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+  })
 );
 
 app.get("/", (req, res) => {
@@ -62,6 +68,8 @@ app.use("/api/admin/services", adminServiceRouter);
 
 app.use("/api/appointment-slots", publicAppointmentSlotRouter);
 app.use("/api/admin/appointment-slots", adminAppointmentSlotRouter);
+
+app.use("/api/appointments", appointmentRoutes);
 
 app.use(errorMiddleware);
 

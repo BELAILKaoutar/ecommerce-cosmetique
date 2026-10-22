@@ -1,3 +1,4 @@
+
 import swaggerJSDoc from "swagger-jsdoc";
 
 const options = {
@@ -9,30 +10,58 @@ const options = {
       description:
         "Documentation des API REST du site e-commerce cosmétique",
     },
+
     servers: [
       {
         url: "http://localhost:5000",
         description: "Serveur local",
       },
     ],
+
     components: {
       securitySchemes: {
         bearerAuth: {
           type: "http",
           scheme: "bearer",
           bearerFormat: "JWT",
+          description:
+            "Saisissez votre token JWT administrateur.",
         },
       },
     },
+
     tags: [
-      { name: "Authentification", description: "Connexion administrateur" },
-      { name: "Catégories", description: "Gestion des catégories" },
-      { name: "Produits", description: "Gestion des produits" },
-      { name: "Services", description: "Consultation des services" },
-      { name: "Administration Services", description: "CRUD des services" },
-      { name: "Commandes", description: "Gestion des commandes" },
+      {
+        name: "Authentification",
+        description: "Connexion et profil administrateur",
+      },
+      {
+        name: "Catégories",
+        description: "Gestion des catégories",
+      },
+      {
+        name: "Produits",
+        description: "Gestion des produits",
+      },
+      {
+        name: "Services",
+        description: "Consultation des services",
+      },
+      {
+        name: "Administration Services",
+        description: "CRUD des services",
+      },
+      {
+        name: "Commandes",
+        description: "Gestion des commandes",
+      },
+      {
+        name: "Réservations",
+        description: "Réservation de services sans compte",
+      },
     ],
   },
+
   apis: ["./src/routes/*.js"],
 };
 
