@@ -1,14 +1,17 @@
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useEffect,useState } from "react";
 import { useCart } from "../../context/CartContext";
 import { formatPrice } from "../../utils/format";
 import Button from "../ui/Button";
 import ImagePlaceholder from "../ui/ImagePlaceholder";
+import { getImageUrl } from "../../utils/imageUrl";
 
 export default function ProductCard({ product }) {
   const { addToCart } = useCart();
   const [imageFailed, setImageFailed] = useState(false);
-
+  useEffect(() => {
+    setImageFailed(false);
+  }, [product?.imageUrl]);
   if (!product) {
     return null;
   }
@@ -24,10 +27,11 @@ export default function ProductCard({ product }) {
       >
         {showImage ? (
           <img
-            src={product.imageUrl}
+            key={product.imageUrl}
+            src={getImageUrl(product.imageUrl)}
             alt={product.name}
-            className="h-full w-full object-contain p-6 transition duration-500 group-hover:scale-[1.03]"
             onError={() => setImageFailed(true)}
+            className="h-full w-full object-contain"
           />
         ) : (
           <ImagePlaceholder className="h-full w-full" />

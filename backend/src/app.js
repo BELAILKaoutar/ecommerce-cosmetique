@@ -27,6 +27,8 @@ import {
 import appointmentRoutes from "./routes/appointment.routes.js";
 
 import { errorMiddleware } from "./middlewares/error.middleware.js";
+import path from "node:path";
+import uploadRoutes from "./routes/upload.routes.js";
 
 const app = express();
 
@@ -37,6 +39,11 @@ app.use(
 );
 
 app.use(express.json());
+
+app.use(
+  "/uploads",
+  express.static(path.resolve("uploads"))
+);
 
 app.use(
   "/api-docs",
@@ -59,6 +66,7 @@ app.use("/api/auth", authRoutes);
 
 app.use("/api/categories", categoryRoutes);
 app.use("/api/products", productRoutes);
+app.use("/api/uploads", uploadRoutes);
 
 app.use("/api/orders", publicOrderRouter);
 app.use("/api/admin/orders", adminOrderRouter);
