@@ -18,7 +18,7 @@ export default function CategoryFilter({
         Toutes les catégories
       </button>
 
-      {categories.map((category) => (
+      {(Array.isArray(categories) ? categories : []).map((category) => (        
         <button
           key={category.id}
           type="button"

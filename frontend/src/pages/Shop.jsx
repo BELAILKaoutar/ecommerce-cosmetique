@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from "react";
 
-import { categoryApi } from "../api/categoryApi";
+import { getCategories } from "../api/categories";
 import CategoryFilter from "../components/categories/CategoryFilter";
 import ProductCard from "../components/products/ProductCard";
 
@@ -22,12 +22,24 @@ export default function Shop() {
   useEffect(() => {
     let cancelled = false;
 
+    
     async function loadCategories() {
+      setCategoriesLoading(true);
+      setCategoryError("");
+
       try {
-        const data = await categoryApi.getAll();
+        const data = await getCategories();
+
+        const categoriesList = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.categories)
+            ? data.categories
+            : Array.isArray(data?.data)
+              ? data.data
+              : [];
 
         if (!cancelled) {
-          setCategories(data);
+          setCategories(categoriesList);
         }
       } catch (err) {
         if (!cancelled) {
@@ -39,6 +51,7 @@ export default function Shop() {
         }
       }
     }
+
 
     loadCategories();
 
