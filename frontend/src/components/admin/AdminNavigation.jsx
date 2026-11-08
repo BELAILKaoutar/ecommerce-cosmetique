@@ -6,8 +6,8 @@ import {
   FolderTree,
   ClipboardList,
   LogOut,
+  Boxes,
 } from "lucide-react";
-
 import { useAdminAuth } from "../../context/AdminAuthContext";
 
 export default function AdminNavigation() {
@@ -24,6 +24,11 @@ export default function AdminNavigation() {
       to: "/admin/categories",
       label: "Catégories",
       icon: FolderTree,
+    },
+    {
+      to: "/admin/stock",
+      label: "Stock",
+      icon: Boxes,
     },
     {
       to: "/admin/commandes",

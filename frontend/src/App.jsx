@@ -20,6 +20,7 @@ import AdminOrders from "./pages/admin/AdminOrders";
 import AdminCategories from "./pages/admin/AdminCategories";
 import AdminProducts from "./pages/admin/AdminProducts";
 import AdminLogin from "./pages/admin/AdminLogin";
+import AdminStock from "./pages/admin/AdminStock";
 
 import ProtectedAdminRoute from "./components/admin/ProtectedAdminRoute";
 
@@ -70,10 +71,17 @@ export default function App() {
                 element={<AdminCategories />}
               />
 
+              <Route 
+                path="/admin/stock" 
+                element={<AdminStock />} 
+              />
+
               <Route
                 path="/admin/commandes"
                 element={<AdminOrders />}
               />
+
+
             </Route>
 
             {/* Redirections */}
