@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -18,6 +17,9 @@ import {
 } from "../../api/stock";
 
 import { getImageUrl } from "../../utils/imageUrl";
+import Button from "../../components/ui/Button";
+import Loader from "../../components/ui/Loader";
+import ToastNotification from "../../components/admin/ToastNotification";
 
 const LOW_STOCK_THRESHOLD = 5;
 
@@ -25,20 +27,20 @@ function getStockStatus(product) {
   if (product.stock === 0) {
     return {
       label: "Rupture de stock",
-      className: "bg-red-100 text-red-700",
+      className: "bg-red-100 text-red-800 border-red-200",
     };
   }
 
   if (product.stock <= LOW_STOCK_THRESHOLD) {
     return {
       label: "Stock faible",
-      className: "bg-amber-100 text-amber-800",
+      className: "bg-amber-100 text-amber-800 border-amber-200",
     };
   }
 
   return {
     label: "Disponible",
-    className: "bg-green-100 text-green-800",
+    className: "bg-emerald-100 text-emerald-800 border-emerald-200",
   };
 }
 
@@ -53,17 +55,14 @@ export default function AdminStock() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [operation, setOperation] = useState("restock");
   const [quantity, setQuantity] = useState("");
+  const [modalError, setModalError] = useState("");
 
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [toast, setToast] = useState(null);
 
   const loadStocks = useCallback(async () => {
     setLoading(true);
-    setError("");
-
     try {
       const response = await getStocks();
-
       const list = Array.isArray(response)
         ? response
         : Array.isArray(response?.products)
@@ -72,7 +71,11 @@ export default function AdminStock() {
 
       setProducts(list);
     } catch (err) {
-      setError(err.message || "Impossible de charger les stocks.");
+      setToast({
+        type: "error",
+        title: "Erreur de chargement",
+        message: err.message || "Impossible de charger les stocks.",
+      });
     } finally {
       setLoading(false);
     }
@@ -88,13 +91,14 @@ export default function AdminStock() {
       (p) => p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD
     ).length,
     out: products.filter((p) => p.stock === 0).length,
+    inStock: products.filter((p) => p.stock > LOW_STOCK_THRESHOLD).length,
   }), [products]);
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
       const matchesSearch = product.name
         .toLowerCase()
-        .includes(search.toLowerCase());
+        .includes(search.toLowerCase().trim());
 
       const matchesFilter =
         filter === "all" ||
@@ -113,15 +117,14 @@ export default function AdminStock() {
     setSelectedProduct(product);
     setOperation(type);
     setQuantity(type === "adjust" ? String(product.stock) : "");
-    setError("");
-    setSuccess("");
+    setModalError("");
   };
 
   const closeModal = () => {
     if (saving) return;
-
     setSelectedProduct(null);
     setQuantity("");
+    setModalError("");
   };
 
   const handleSubmit = async (event) => {
@@ -136,17 +139,16 @@ export default function AdminStock() {
       !Number.isSafeInteger(parsedQuantity) ||
       parsedQuantity < (operation === "restock" ? 1 : 0)
     ) {
-      setError(
+      setModalError(
         operation === "restock"
-          ? "Saisis une quantité entière supérieure à zéro."
-          : "Saisis une quantité entière positive ou nulle."
+          ? "Saisissez une quantité entière supérieure à zéro."
+          : "Saisissez une quantité entière positive ou nulle."
       );
       return;
     }
 
     setSaving(true);
-    setError("");
-    setSuccess("");
+    setModalError("");
 
     try {
       if (operation === "restock") {
@@ -155,297 +157,320 @@ export default function AdminStock() {
         await adjustProductStock(selectedProduct.id, parsedQuantity);
       }
 
-      const message =
+      const msg =
         operation === "restock"
-          ? "Stock réapprovisionné avec succès."
-          : "Stock ajusté avec succès.";
+          ? `Le produit "${selectedProduct.name}" a été réapprovisionné de +${parsedQuantity} unités.`
+          : `Le stock du produit "${selectedProduct.name}" est désormais ajusté à ${parsedQuantity} unités.`;
 
-      const response = await getStocks();
-      setProducts(
-        Array.isArray(response)
-          ? response
-          : response?.products ?? []
-      );
+      setToast({
+        type: "success",
+        title: "Stock actualisé",
+        message: msg,
+      });
 
-      setSelectedProduct(null);
-      setQuantity("");
-      setSuccess(message);
+      closeModal();
+      await loadStocks();
     } catch (err) {
-      setError(err.message || "Impossible de modifier le stock.");
+      setModalError(err.message || "Impossible de modifier le stock.");
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-10">
+    <div className="space-y-6 animate-fadeIn">
       {/* En-tête */}
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gold/40 pb-5">
         <div>
-          <h1 className="font-heading text-4xl text-forest">
-            Gestion du stock
-          </h1>
-          <p className="mt-2 text-charcoal">
-            Suivez les quantités et les disponibilités de vos produits.
+          <h2 className="font-heading text-2xl md:text-3xl font-bold text-forest">
+            Gestion des stocks & Inventaire
+          </h2>
+          <p className="text-xs md:text-sm text-muted mt-1">
+            Contrôlez les niveaux de stock, les réapprovisionnements et évitez les ruptures.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={loadStocks}
+          disabled={loading}
+          className="flex items-center gap-1.5 rounded-2xl border border-gold/60 bg-ivory px-3.5 py-2 text-xs md:text-sm font-semibold text-forest hover:bg-cream transition shadow-xs disabled:opacity-50 self-start sm:self-auto"
+        >
+          <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+          Actualiser
+        </button>
+      </div>
+
+      {/* Cartes KPI Stock */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <div className="rounded-3xl border border-gold/40 bg-ivory p-5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+              Total Références
+            </span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-forest/10 text-forest">
+              <Package size={20} />
+            </div>
+          </div>
+          <p className="mt-3 font-heading text-3xl font-bold text-forest">
+            {stats.total}
+          </p>
+          <p className="text-xs text-muted mt-1">
+            {stats.inStock} produit(s) en quantité suffisante
+          </p>
+        </div>
+
+        <div className="rounded-3xl border border-gold/40 bg-ivory p-5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+              Stock Faible
+            </span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-100 text-amber-800">
+              <AlertTriangle size={20} />
+            </div>
+          </div>
+          <p className="mt-3 font-heading text-3xl font-bold text-amber-900">
+            {stats.low}
+          </p>
+          <p className="text-xs text-muted mt-1">
+            1 à {LOW_STOCK_THRESHOLD} unités restantes
+          </p>
+        </div>
+
+        <div className="rounded-3xl border border-gold/40 bg-ivory p-5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+              Rupture Complète
+            </span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-red-100 text-red-800">
+              <Boxes size={20} />
+            </div>
+          </div>
+          <p className="mt-3 font-heading text-3xl font-bold text-red-700">
+            {stats.out}
+          </p>
+          <p className="text-xs text-muted mt-1">
+            Produits indisponibles à l'achat
           </p>
         </div>
       </div>
 
-      {/* Messages */}
-      {error && (
-        <div role="alert" className="mb-5 rounded-xl bg-red-50 p-4 text-red-700">
-          {error}
-        </div>
-      )}
-
-      {success && (
-        <div role="status" className="mb-5 rounded-xl bg-green-50 p-4 text-green-700">
-          {success}
-        </div>
-      )}
-
-      {/* Statistiques */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
-        {[
-          {
-            label: "Total produits",
-            value: stats.total,
-            icon: Package,
-          },
-          {
-            label: "Stock faible",
-            value: stats.low,
-            icon: AlertTriangle,
-          },
-          {
-            label: "Rupture de stock",
-            value: stats.out,
-            icon: Boxes,
-          },
-        ].map(({ label, value, icon: Icon }) => (
-          <div
-            key={label}
-            className="rounded-2xl border border-gold/30 bg-ivory p-5"
-          >
-            <div className="mb-3 flex items-center gap-2 text-sage">
-              <Icon size={19} />
-              <span className="text-sm">{label}</span>
-            </div>
-
-            <p className="text-3xl font-semibold text-forest">
-              {value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* Recherche et filtres */}
-      <div className="mb-6 flex flex-wrap gap-3">
-        <div className="relative min-w-[220px] flex-1">
+      {/* Barre de recherche et filtres */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-ivory p-4 rounded-3xl border border-gold/40 shadow-xs">
+        <div className="relative flex-1">
           <Search
-            size={18}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+            size={16}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted"
           />
-
           <input
             type="search"
             placeholder="Rechercher un produit..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border border-gold/40 bg-ivory py-3 pl-10 pr-4 outline-none focus:border-forest"
+            className="w-full rounded-2xl border border-gold/50 bg-cream py-2 pl-9 pr-4 text-xs md:text-sm outline-none focus:border-forest transition"
           />
         </div>
 
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="rounded-xl border border-gold/40 bg-ivory px-4 py-3 text-forest"
+          className="rounded-2xl border border-gold/50 bg-cream px-3 py-2 text-xs md:text-sm outline-none focus:border-forest text-charcoal transition"
         >
-          <option value="all">Tous les stocks</option>
-          <option value="available">Disponibles</option>
-          <option value="low">Stock faible</option>
-          <option value="out">Rupture de stock</option>
+          <option value="all">Tous les statuts de stock</option>
+          <option value="available">Disponibles (&gt; 5)</option>
+          <option value="low">Stock faible (1 à 5)</option>
+          <option value="out">Rupture de stock (0)</option>
         </select>
       </div>
 
-      {/* Tableau */}
-      <div className="overflow-x-auto rounded-2xl border border-gold/30 bg-ivory">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-gold/30 bg-cream text-forest">
-            <tr>
-              <th className="px-5 py-4">Produit</th>
-              <th className="px-5 py-4">Catégorie</th>
-              <th className="px-5 py-4">Quantité</th>
-              <th className="px-5 py-4">Statut</th>
-              <th className="px-5 py-4 text-right">Actions</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={5} className="p-8 text-center">
-                  Chargement des stocks...
-                </td>
+      {/* Tableau des stocks */}
+      <div className="rounded-3xl border border-gold/40 bg-ivory shadow-xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs md:text-sm">
+            <thead>
+              <tr className="border-b border-gold/30 bg-cream/60 text-muted uppercase tracking-wider text-[11px]">
+                <th className="py-3.5 px-4 font-semibold">Produit</th>
+                <th className="py-3.5 px-4 font-semibold">Catégorie</th>
+                <th className="py-3.5 px-4 font-semibold">Stock Actuel</th>
+                <th className="py-3.5 px-4 font-semibold">Statut</th>
+                <th className="py-3.5 px-4 font-semibold text-right">Actions</th>
               </tr>
-            ) : filteredProducts.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="p-8 text-center text-muted">
-                  Aucun produit trouvé.
-                </td>
-              </tr>
-            ) : (
-              filteredProducts.map((product) => {
-                const status = getStockStatus(product);
+            </thead>
+            <tbody className="divide-y divide-gold/20">
+              {loading && products.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-16 text-center">
+                    <Loader label="Chargement des stocks..." />
+                  </td>
+                </tr>
+              ) : filteredProducts.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center text-muted">
+                    Aucun produit ne correspond à ces critères.
+                  </td>
+                </tr>
+              ) : (
+                filteredProducts.map((product) => {
+                  const status = getStockStatus(product);
 
-                return (
-                  <tr
-                    key={product.id}
-                    className="border-b border-gold/20 last:border-0"
-                  >
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        {product.imageUrl ? (
-                          <img
-                            src={getImageUrl(product.imageUrl)}
-                            alt={product.name}
-                            className="h-12 w-12 rounded-lg object-contain"
-                          />
-                        ) : (
-                          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-cream">
-                            <Package size={20} />
-                          </div>
-                        )}
+                  return (
+                    <tr
+                      key={product.id}
+                      className="hover:bg-cream/40 transition group"
+                    >
+                      {/* Image et Nom */}
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-3">
+                          {product.imageUrl ? (
+                            <img
+                              src={getImageUrl(product.imageUrl)}
+                              alt={product.name}
+                              className="h-10 w-10 rounded-xl object-cover border border-gold/30 shrink-0"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 rounded-xl bg-cream flex items-center justify-center text-forest border border-gold/30 shrink-0">
+                              <Package size={18} />
+                            </div>
+                          )}
 
-                        <span className="font-medium text-forest">
-                          {product.name}
+                          <span className="font-semibold text-charcoal">
+                            {product.name}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Catégorie */}
+                      <td className="py-3.5 px-4 text-muted">
+                        {product.category?.name || "—"}
+                      </td>
+
+                      {/* Quantité */}
+                      <td className="py-3.5 px-4 font-heading text-lg font-bold text-forest">
+                        {product.stock}
+                      </td>
+
+                      {/* Statut badge */}
+                      <td className="py-3.5 px-4">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${status.className}`}
+                        >
+                          {status.label}
                         </span>
-                      </div>
-                    </td>
+                      </td>
 
-                    <td className="px-5 py-4">
-                      {product.category?.name || "—"}
-                    </td>
+                      {/* Boutons d'action */}
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openModal(product, "restock")}
+                            className="flex items-center gap-1 rounded-xl bg-forest px-3 py-1.5 text-xs font-semibold text-white hover:bg-forest-dark transition"
+                          >
+                            <Plus size={14} />
+                            Réapprovisionner
+                          </button>
 
-                    <td className="px-5 py-4 font-semibold">
-                      {product.stock}
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <span className={`rounded-full px-3 py-1 text-xs ${status.className}`}>
-                        {status.label}
-                      </span>
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openModal(product, "restock")}
-                          className="flex items-center gap-1 rounded-lg bg-forest px-3 py-2 text-xs text-white"
-                        >
-                          <Plus size={14} />
-                          Ajouter
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => openModal(product, "adjust")}
-                          className="flex items-center gap-1 rounded-lg border border-gold/50 px-3 py-2 text-xs text-forest"
-                        >
-                          <ArrowDownUp size={14} />
-                          Ajuster
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                          <button
+                            type="button"
+                            onClick={() => openModal(product, "adjust")}
+                            className="flex items-center gap-1 rounded-xl border border-gold/60 bg-white px-3 py-1.5 text-xs font-semibold text-forest hover:bg-cream transition"
+                          >
+                            <ArrowDownUp size={14} />
+                            Ajuster
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Modal de gestion du stock */}
+      {/* =========================================
+          MODALE DE RÉAPPROVISIONNEMENT / AJUSTEMENT
+      ========================================= */}
       {selectedProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="stock-modal-title"
-            className="w-full max-w-md rounded-3xl bg-ivory p-6 shadow-xl"
-          >
-            <div className="mb-5 flex items-center justify-between">
-              <h2
-                id="stock-modal-title"
-                className="font-heading text-2xl text-forest"
-              >
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal/50 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-md rounded-3xl border border-gold/40 bg-ivory p-6 md:p-8 shadow-xl animate-scaleIn space-y-5">
+            <div className="flex items-center justify-between border-b border-gold/30 pb-4">
+              <h3 className="font-heading text-2xl font-bold text-forest">
                 {operation === "restock"
                   ? "Réapprovisionner"
-                  : "Ajuster le stock"}
-              </h2>
-
+                  : "Ajuster l'inventaire"}
+              </h3>
               <button
                 type="button"
                 onClick={closeModal}
                 disabled={saving}
-                aria-label="Fermer"
+                className="text-muted hover:text-charcoal p-1 rounded-lg hover:bg-cream"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            <p className="mb-2 font-medium text-forest">
-              {selectedProduct.name}
-            </p>
+            <div className="rounded-2xl border border-gold/30 bg-cream/40 p-3.5">
+              <p className="font-semibold text-charcoal text-sm">
+                {selectedProduct.name}
+              </p>
+              <p className="text-xs text-muted mt-0.5">
+                Niveau actuel en stock : <strong>{selectedProduct.stock}</strong> unité(s)
+              </p>
+            </div>
 
-            <p className="mb-5 text-sm text-muted">
-              Stock actuel : {selectedProduct.stock}
-            </p>
+            {modalError && (
+              <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-xs text-red-800">
+                {modalError}
+              </div>
+            )}
 
-            <form onSubmit={handleSubmit}>
-              <label
-                htmlFor="stock-quantity"
-                className="mb-2 block text-sm text-forest"
-              >
-                {operation === "restock"
-                  ? "Quantité à ajouter"
-                  : "Nouvelle quantité"}
-              </label>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-forest uppercase tracking-wider">
+                  {operation === "restock"
+                    ? "Quantité à ajouter au stock (+)"
+                    : "Nouvelle quantité totale en stock"}
+                </label>
+                <input
+                  type="number"
+                  min={operation === "restock" ? 1 : 0}
+                  step="1"
+                  required
+                  autoFocus
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  placeholder={operation === "restock" ? "Ex. 10" : "Ex. 25"}
+                  className="w-full rounded-2xl border border-gold/50 bg-cream px-4 py-2.5 text-sm outline-none focus:border-forest transition"
+                />
+              </div>
 
-              <input
-                id="stock-quantity"
-                type="number"
-                min={operation === "restock" ? 1 : 0}
-                step="1"
-                required
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                className="mb-6 w-full rounded-xl border border-gold/50 bg-cream px-4 py-3 outline-none focus:border-forest"
-              />
-
-              <div className="flex justify-end gap-3">
-                <button
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-gold/30">
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={closeModal}
                   disabled={saving}
-                  className="rounded-xl border border-gold/50 px-5 py-2 text-forest"
                 >
                   Annuler
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-xl bg-forest px-5 py-2 text-white disabled:opacity-60"
-                >
-                  {saving ? "Enregistrement..." : "Confirmer"}
-                </button>
+                </Button>
+                <Button type="submit" size="sm" disabled={saving}>
+                  {saving ? "Enregistrement..." : "Valider"}
+                </Button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Notifications Toast */}
+      <ToastNotification toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 }

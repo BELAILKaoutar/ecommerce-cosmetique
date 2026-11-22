@@ -52,6 +52,24 @@ router.post("/login", authController.login);
 
 /**
  * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     tags:
+ *       - Authentification
+ *     summary: Déconnexion administrateur
+ *     description: Invalide la session côté serveur et efface le cookie de session.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Déconnexion réussie
+ *       401:
+ *         description: Non authentifié
+ */
+router.post("/logout", authMiddleware, authController.logout);
+
+/**
+ * @swagger
  * /api/auth/me:
  *   get:
  *     tags:

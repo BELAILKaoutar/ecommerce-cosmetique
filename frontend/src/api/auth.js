@@ -7,3 +7,7 @@ export function loginAdmin(credentials) {
 export function getMe() {
   return client.get("/api/auth/me").then((response) => response.data);
 }
+
+export function logoutAdmin() {
+  return client.post("/api/auth/logout").then((response) => response.data);
+}

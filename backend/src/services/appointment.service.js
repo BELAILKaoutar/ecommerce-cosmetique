@@ -1,4 +1,3 @@
-
 import prisma from "../config/prisma.js";
 import { appointmentRepository } from "../repositories/appointment.repository.js";
 
@@ -12,6 +11,8 @@ const httpError = (status, message) => {
 const isUuid = (value) =>
   typeof value === "string" &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
+const APPOINTMENT_STATUSES = ["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED"];
 
 const validateCustomer = (customerName, phone) => {
   if (
@@ -53,6 +54,9 @@ export const appointmentService = {
       "slotId",
       "customerName",
       "phone",
+      "serviceType",
+      "address",
+      "notes",
     ];
 
     const unknownFields = Object.keys(payload).filter(
@@ -66,7 +70,7 @@ export const appointmentService = {
       );
     }
 
-    const { slotId, customerName, phone } = payload;
+    const { slotId, customerName, phone, serviceType = "CENTRE", address, notes } = payload;
 
     if (!isUuid(slotId)) {
       throw httpError(
@@ -76,6 +80,14 @@ export const appointmentService = {
     }
 
     validateCustomer(customerName, phone);
+
+    if (!["CENTRE", "DOMICILE"].includes(serviceType)) {
+      throw httpError(400, "serviceType doit être 'CENTRE' ou 'DOMICILE'.");
+    }
+
+    if (serviceType === "DOMICILE" && (!address || !address.trim())) {
+      throw httpError(400, "L'adresse est obligatoire pour un service à domicile.");
+    }
 
     const slot = await prisma.appointmentSlot.findUnique({
       where: {
@@ -107,13 +119,6 @@ export const appointmentService = {
       );
     }
 
-    if (slot.capacity !== 1) {
-      throw httpError(
-        409,
-        "Ce créneau ne respecte pas la capacité autorisée."
-      );
-    }
-
     const existing = await appointmentRepository.findActiveBySlot(
       slotId
     );
@@ -126,11 +131,16 @@ export const appointmentService = {
     }
 
     try {
+      const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
       return await appointmentRepository.create({
         slotId,
         customerName: customerName.trim(),
         phone: phone.trim(),
+        serviceType,
+        address: address ? address.trim() : null,
+        notes: notes ? notes.trim() : null,
         status: "PENDING",
+        expiresAt,
       });
     } catch (error) {
       if (error.code === "P2002") {
@@ -190,5 +200,72 @@ export const appointmentService = {
     return appointmentRepository.findAvailableSlots(
       serviceId
     );
+  },
+
+  // Fonctions d'administration
+  async list(filters = {}) {
+    const where = {};
+
+    if (filters.status && filters.status !== "ALL") {
+      if (!APPOINTMENT_STATUSES.includes(filters.status)) {
+        throw httpError(400, "Statut de réservation invalide.");
+      }
+      where.status = filters.status;
+    }
+
+    if (filters.serviceId) {
+      if (!isUuid(filters.serviceId)) {
+        throw httpError(400, "Identifiant du service invalide.");
+      }
+      where.slot = {
+        serviceId: filters.serviceId,
+      };
+    }
+
+    if (filters.search) {
+      const q = filters.search.trim();
+      where.OR = [
+        { customerName: { contains: q, mode: "insensitive" } },
+        { phone: { contains: q } },
+      ];
+    }
+
+    return appointmentRepository.findAll(where);
+  },
+
+  async updateStatus(id, status) {
+    if (!isUuid(id)) {
+      throw httpError(400, "Identifiant de réservation invalide.");
+    }
+
+    if (!APPOINTMENT_STATUSES.includes(status)) {
+      throw httpError(400, "Statut de réservation invalide.");
+    }
+
+    await this.getById(id);
+
+    return appointmentRepository.updateStatus(id, status);
+  },
+
+  async confirm(id) {
+    return this.updateStatus(id, "CONFIRMED");
+  },
+
+  async cancel(id) {
+    return this.updateStatus(id, "CANCELLED");
+  },
+
+  async getAvailableDates() {
+    const from = new Date();
+    const to = new Date();
+    to.setDate(to.getDate() + 60); // 60 jours
+    return appointmentRepository.findAvailableDates(from, to);
+  },
+
+  async getSlotsForDate(dateStr) {
+    if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      throw httpError(400, "Format de date invalide. Utilisez YYYY-MM-DD.");
+    }
+    return appointmentRepository.findAvailableSlotsByDate(dateStr);
   },
 };

@@ -1,4 +1,3 @@
-
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { CartProvider } from "./context/CartContext";
@@ -16,11 +15,13 @@ import HijamaBooking from "./pages/HijamaBooking";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
 
+import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminOrders from "./pages/admin/AdminOrders";
 import AdminCategories from "./pages/admin/AdminCategories";
 import AdminProducts from "./pages/admin/AdminProducts";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminStock from "./pages/admin/AdminStock";
+import AdminAppointments from "./pages/admin/AdminAppointments";
 
 import ProtectedAdminRoute from "./components/admin/ProtectedAdminRoute";
 
@@ -30,7 +31,6 @@ export default function App() {
       <CartProvider>
         <AdminAuthProvider>
           <Routes>
-
             {/* =========================
                 ESPACE PUBLIC
             ========================= */}
@@ -52,6 +52,12 @@ export default function App() {
             {/* =========================
                 CONNEXION ADMIN
             ========================= */}
+            {/* /login est l'alias public affiché dans la Navbar */}
+            <Route
+              path="/login"
+              element={<AdminLogin />}
+            />
+            {/* /admin/login reste accessible pour compatibilité */}
             <Route
               path="/admin/login"
               element={<AdminLogin />}
@@ -62,6 +68,16 @@ export default function App() {
             ========================= */}
             <Route element={<ProtectedAdminRoute />}>
               <Route
+                path="/admin"
+                element={<AdminDashboard />}
+              />
+
+              <Route
+                path="/admin/commandes"
+                element={<AdminOrders />}
+              />
+
+              <Route
                 path="/admin/produits"
                 element={<AdminProducts />}
               />
@@ -71,39 +87,42 @@ export default function App() {
                 element={<AdminCategories />}
               />
 
-              <Route 
-                path="/admin/stock" 
-                element={<AdminStock />} 
+              <Route
+                path="/admin/stock"
+                element={<AdminStock />}
               />
 
               <Route
-                path="/admin/commandes"
-                element={<AdminOrders />}
+                path="/admin/reservations"
+                element={<AdminAppointments />}
               />
-
-
             </Route>
 
-            {/* Redirections */}
+            {/* Redirections pratiques */}
             <Route
-              path="/admin"
-              element={
-                <Navigate to="/admin/produits" replace />
-              }
+              path="/admin/dashboard"
+              element={<Navigate to="/admin" replace />}
             />
 
             <Route
               path="/admin/orders"
-              element={
-                <Navigate to="/admin/commandes" replace />
-              }
+              element={<Navigate to="/admin/commandes" replace />}
+            />
+
+            <Route
+              path="/admin/products"
+              element={<Navigate to="/admin/produits" replace />}
+            />
+
+            <Route
+              path="/admin/reservations-hijama"
+              element={<Navigate to="/admin/reservations" replace />}
             />
 
             <Route
               path="*"
               element={<Navigate to="/" replace />}
             />
-
           </Routes>
         </AdminAuthProvider>
       </CartProvider>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { Menu, ShoppingBag, X } from "lucide-react";
+import { Menu, ShoppingBag, X, LogIn } from "lucide-react";
 import { LOGO_SRC, NAV_LINKS, SITE } from "../../config/site";
 import { useCart } from "../../context/CartContext";
 import Button from "../ui/Button";
@@ -59,6 +59,16 @@ export default function Navbar() {
             Réserver
           </Button>
 
+          {/* Bouton Login — accès à l'espace Administration */}
+          <Link
+            to="/login"
+            className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-gold/60 bg-ivory px-3.5 py-2 text-xs font-semibold text-forest hover:bg-cream hover:border-forest/50 transition"
+            aria-label="Se connecter"
+          >
+            <LogIn size={15} strokeWidth={2} />
+            Login
+          </Link>
+
           <Link
             to="/panier"
             className="relative inline-flex h-11 w-11 items-center justify-center rounded-full text-forest transition hover:bg-sage/25"
@@ -109,6 +119,13 @@ export default function Navbar() {
             <Button to="/reservation-hijama" className="mt-3 w-full">
               Réserver une séance
             </Button>
+            <Link
+              to="/login"
+              className="mt-2 flex items-center justify-center gap-2 rounded-2xl border border-gold/60 bg-ivory px-4 py-3 text-sm font-semibold text-forest hover:bg-cream transition"
+            >
+              <LogIn size={16} />
+              Login — Espace Administration
+            </Link>
           </nav>
         </div>
       ) : null}

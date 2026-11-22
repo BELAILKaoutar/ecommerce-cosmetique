@@ -1,4 +1,3 @@
-
 import express from "express";
 import cors from "cors";
 import swaggerUi from "swagger-ui-express";
@@ -24,7 +23,11 @@ import {
   adminAppointmentSlotRouter,
 } from "./routes/appointment-slot.routes.js";
 
-import appointmentRoutes from "./routes/appointment.routes.js";
+import appointmentRoutes, {
+  adminAppointmentRouter,
+} from "./routes/appointment.routes.js";
+
+import dashboardRoutes from "./routes/dashboard.routes.js";
 
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 import path from "node:path";
@@ -36,6 +39,7 @@ const app = express();
 app.use(
   cors({
     origin: process.env.FRONTEND_ORIGIN || "http://localhost:5173",
+    credentials: true,
   })
 );
 
@@ -80,6 +84,10 @@ app.use("/api/appointment-slots", publicAppointmentSlotRouter);
 app.use("/api/admin/appointment-slots", adminAppointmentSlotRouter);
 
 app.use("/api/appointments", appointmentRoutes);
+app.use("/api/admin/appointments", adminAppointmentRouter);
+
+app.use("/api/admin/dashboard", dashboardRoutes);
+app.use("/api/admin/stats", dashboardRoutes);
 
 app.use(errorMiddleware);
 

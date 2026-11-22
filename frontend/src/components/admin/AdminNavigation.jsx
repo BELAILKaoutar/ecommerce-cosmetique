@@ -39,7 +39,7 @@ export default function AdminNavigation() {
 
   const handleLogout = () => {
     logout();
-    navigate("/admin/login", { replace: true });
+    navigate("/", { replace: true });
   };
 
   return (

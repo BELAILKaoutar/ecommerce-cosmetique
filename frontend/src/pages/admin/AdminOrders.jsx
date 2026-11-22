@@ -1,20 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import {
   AlertCircle,
-  Check,
   CheckCircle2,
   Clock,
-  ExternalLink,
+  Eye,
   PackageCheck,
+  Phone,
+  Mail,
+  MapPin,
   RefreshCw,
   Search,
-  ShieldCheck,
   Truck,
-  X,
   XCircle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
-import { useAdminAuth } from "../../context/AdminAuthContext";
 import {
   cancelOrder,
   confirmOrder,
@@ -23,9 +23,9 @@ import {
 } from "../../api/orders";
 import { formatPrice } from "../../utils/format";
 import Button from "../../components/ui/Button";
-import EmptyState from "../../components/ui/EmptyState";
 import Loader from "../../components/ui/Loader";
-import PageContainer from "../../components/ui/PageContainer";
+import ConfirmationModal from "../../components/admin/ConfirmationModal";
+import ToastNotification from "../../components/admin/ToastNotification";
 
 const STATUS_CONFIG = {
   PENDING: {
@@ -45,7 +45,7 @@ const STATUS_CONFIG = {
   },
   DELIVERED: {
     label: "Livrée",
-    badgeClass: "bg-sage/30 text-forest border-sage/60",
+    badgeClass: "bg-emerald-100 text-emerald-900 border-emerald-300",
     icon: PackageCheck,
   },
   CANCELLED: {
@@ -71,20 +71,32 @@ function formatDate(dateStr) {
 }
 
 export default function AdminOrders() {
-  const { admin, loading: authLoading, error: authError, isAuthenticated, retryAuth } =
-    useAdminAuth();
-
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [fetchError, setFetchError] = useState(null);
-  const [actionLoadingId, setActionLoadingId] = useState(null);
-  const [actionMessage, setActionMessage] = useState(null);
+
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedOrders, setExpandedOrders] = useState({});
 
+  // Modale de détails
+  const [selectedOrder, setSelectedOrder] = useState(null);
+
+  // Modale de confirmation
+  const [modalConfig, setModalConfig] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    confirmText: "",
+    variant: "warning",
+    onConfirm: null,
+  });
+  const [modalLoading, setModalLoading] = useState(false);
+
+  // Notification Toast
+  const [toast, setToast] = useState(null);
+
   const fetchOrders = useCallback(async () => {
-    if (!isAuthenticated) return;
     setLoadingOrders(true);
     setFetchError(null);
     try {
@@ -92,19 +104,16 @@ export default function AdminOrders() {
       setOrders(Array.isArray(data) ? data : []);
     } catch (err) {
       setFetchError(
-        err.message ||
-          "Impossible de charger les commandes. Vérifiez que le backend et la base de données sont actifs."
+        err.message || "Impossible de charger les commandes."
       );
     } finally {
       setLoadingOrders(false);
     }
-  }, [isAuthenticated]);
+  }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchOrders();
-    }
-  }, [isAuthenticated, fetchOrders]);
+    fetchOrders();
+  }, [fetchOrders]);
 
   const toggleExpand = (orderId) => {
     setExpandedOrders((prev) => ({
@@ -113,79 +122,101 @@ export default function AdminOrders() {
     }));
   };
 
-  const handleConfirm = async (order) => {
-    const ok = window.confirm(
-      `Confirmer la commande ${order.orderNumber} ?\nLe stock des produits commandés sera immédiatement déduit.`
-    );
-    if (!ok) return;
-
-    setActionLoadingId(order.id);
-    setActionMessage(null);
-    try {
-      const updated = await confirmOrder(order.id);
-      setOrders((prev) =>
-        prev.map((item) => (item.id === order.id ? updated : item))
-      );
-      setActionMessage({
-        type: "success",
-        text: `Commande ${order.orderNumber} confirmée avec succès. Stock déduit.`,
-      });
-    } catch (err) {
-      setActionMessage({
-        type: "error",
-        text: `Échec de confirmation : ${err.message}`,
-      });
-    } finally {
-      setActionLoadingId(null);
-    }
+  // Action : Confirmer commande
+  const requestConfirm = (order) => {
+    setModalConfig({
+      isOpen: true,
+      title: "Confirmer la commande",
+      message: `Voulez-vous confirmer la commande ${order.orderNumber} ?\nLe stock des articles commandés sera automatiquement déduit.`,
+      confirmText: "Confirmer la commande",
+      variant: "success",
+      onConfirm: async () => {
+        setModalLoading(true);
+        try {
+          const updated = await confirmOrder(order.id);
+          setOrders((prev) =>
+            prev.map((item) => (item.id === order.id ? updated : item))
+          );
+          if (selectedOrder?.id === order.id) {
+            setSelectedOrder(updated);
+          }
+          setToast({
+            type: "success",
+            title: "Commande confirmée",
+            message: `La commande ${order.orderNumber} a été validée et le stock déduit.`,
+          });
+          setModalConfig((prev) => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          setToast({
+            type: "error",
+            title: "Échec de confirmation",
+            message: err.message,
+          });
+        } finally {
+          setModalLoading(false);
+        }
+      },
+    });
   };
 
-  const handleCancel = async (order) => {
-    const ok = window.confirm(
-      `Annuler la commande ${order.orderNumber} ?\nLe stock sera automatiquement restitué si la commande était déjà confirmée.`
-    );
-    if (!ok) return;
-
-    setActionLoadingId(order.id);
-    setActionMessage(null);
-    try {
-      const updated = await cancelOrder(order.id);
-      setOrders((prev) =>
-        prev.map((item) => (item.id === order.id ? updated : item))
-      );
-      setActionMessage({
-        type: "success",
-        text: `Commande ${order.orderNumber} annulée.`,
-      });
-    } catch (err) {
-      setActionMessage({
-        type: "error",
-        text: `Échec de l'annulation : ${err.message}`,
-      });
-    } finally {
-      setActionLoadingId(null);
-    }
+  // Action : Annuler commande
+  const requestCancel = (order) => {
+    setModalConfig({
+      isOpen: true,
+      title: "Annuler la commande",
+      message: `Voulez-vous annuler la commande ${order.orderNumber} ?\nLe stock sera automatiquement réintégré si la commande avait été confirmée.`,
+      confirmText: "Annuler la commande",
+      variant: "danger",
+      onConfirm: async () => {
+        setModalLoading(true);
+        try {
+          const updated = await cancelOrder(order.id);
+          setOrders((prev) =>
+            prev.map((item) => (item.id === order.id ? updated : item))
+          );
+          if (selectedOrder?.id === order.id) {
+            setSelectedOrder(updated);
+          }
+          setToast({
+            type: "success",
+            title: "Commande annulée",
+            message: `La commande ${order.orderNumber} a été annulée.`,
+          });
+          setModalConfig((prev) => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          setToast({
+            type: "error",
+            title: "Échec d'annulation",
+            message: err.message,
+          });
+        } finally {
+          setModalLoading(false);
+        }
+      },
+    });
   };
 
+  // Action : Changer statut
   const handleUpdateStatus = async (order, nextStatus) => {
-    setActionLoadingId(order.id);
-    setActionMessage(null);
     try {
       const updated = await updateOrderStatus(order.id, nextStatus);
       setOrders((prev) =>
         prev.map((item) => (item.id === order.id ? updated : item))
       );
-      setActionMessage({
+      if (selectedOrder?.id === order.id) {
+        setSelectedOrder(updated);
+      }
+      setToast({
         type: "success",
-        text: `Statut de la commande ${order.orderNumber} mis à jour : ${STATUS_CONFIG[nextStatus]?.label || nextStatus}.`,
+        title: "Statut mis à jour",
+        message: `La commande ${order.orderNumber} est désormais "${STATUS_CONFIG[nextStatus]?.label || nextStatus}".`,
       });
     } catch (err) {
-      setActionMessage({
+      setToast({
         type: "error",
-        text: `Échec de mise à jour du statut : ${err.message}`,
+        title: "Erreur de statut",
+        message: err.message,
       });
-    } finally {
-      setActionLoadingId(null);
     }
   };
 
@@ -225,422 +256,458 @@ export default function AdminOrders() {
     return stats;
   }, [orders]);
 
-  if (authLoading) {
-    return (
-      <section className="py-20">
-        <PageContainer>
-          <Loader label="Accès automatique à l'espace d'administration (Mode Démo)..." />
-        </PageContainer>
-      </section>
-    );
-  }
-
-  if (authError && !isAuthenticated) {
-    return (
-      <section className="py-20">
-        <PageContainer className="max-w-xl text-center">
-          <div className="rounded-3xl border border-red-200 bg-red-50 p-8 shadow-sm">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100 text-red-700">
-              <AlertCircle size={28} />
-            </div>
-            <h1 className="font-heading text-3xl text-forest">
-              Erreur d’accès à l’espace Admin
-            </h1>
-            <p className="mt-3 text-sm text-charcoal/80">{authError}</p>
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <Button onClick={() => retryAuth()}>Réessayer la connexion</Button>
-              <Button to="/boutique" variant="outline">
-                Retour à la boutique
-              </Button>
-            </div>
-          </div>
-        </PageContainer>
-      </section>
-    );
-  }
-
   return (
-    <section className="py-10 sm:py-14">
-      <PageContainer>
-        {/* En-tête de la page */}
-        <div className="flex flex-col justify-between gap-4 border-b border-gold/40 pb-6 sm:flex-row sm:items-end">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-forest/30 bg-forest/10 px-3 py-0.5 text-xs font-medium text-forest">
-                <ShieldCheck size={14} /> Mode Démo Transparent
-              </span>
-              {admin?.email ? (
-                <span className="text-xs text-muted">
-                  Connecté en tant que : <strong>{admin.name || admin.email}</strong>
-                </span>
-              ) : null}
-            </div>
-            <h1 className="mt-2 font-heading text-3xl text-forest sm:text-4xl">
-              Gestion des commandes
-            </h1>
-            <p className="mt-1 text-sm text-muted">
-              Consultez, confirmez et gérez le cycle de vie des commandes clients.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchOrders}
-              disabled={loadingOrders}
-            >
-              <RefreshCw
-                size={16}
-                className={loadingOrders ? "animate-spin" : ""}
-              />
-              <span>Actualiser</span>
-            </Button>
-            <Button to="/boutique" variant="ghost" size="sm">
-              <span>Boutique</span>
-              <ExternalLink size={14} />
-            </Button>
-          </div>
+    <div className="space-y-6 animate-fadeIn">
+      {/* En-tête */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gold/40 pb-5">
+        <div>
+          <h2 className="font-heading text-2xl md:text-3xl font-bold text-forest">
+            Gestion des commandes
+          </h2>
+          <p className="text-xs md:text-sm text-muted mt-1">
+            Visualisez et traitez les commandes des clientes de la boutique.
+          </p>
         </div>
 
-        {/* Message de rétroaction d'action (Confirmation, annulation, mise à jour) */}
-        {actionMessage ? (
-          <div
-            className={`mt-6 flex items-center justify-between rounded-2xl border p-4 text-sm ${
-              actionMessage.type === "success"
-                ? "border-emerald-300 bg-emerald-50 text-emerald-900"
-                : "border-red-300 bg-red-50 text-red-900"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              {actionMessage.type === "success" ? (
-                <Check size={18} />
-              ) : (
-                <AlertCircle size={18} />
-              )}
-              <span>{actionMessage.text}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActionMessage(null)}
-              className="text-muted hover:text-charcoal"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        ) : null}
+        <button
+          type="button"
+          onClick={fetchOrders}
+          disabled={loadingOrders}
+          className="flex items-center gap-2 rounded-2xl border border-gold/60 bg-ivory px-4 py-2 text-xs md:text-sm font-semibold text-forest hover:bg-cream transition shadow-xs disabled:opacity-50 self-start sm:self-auto"
+        >
+          <RefreshCw size={15} className={loadingOrders ? "animate-spin" : ""} />
+          Actualiser
+        </button>
+      </div>
 
-        {/* Erreur de récupération des commandes */}
-        {fetchError ? (
-          <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-            {fetchError}
-          </div>
-        ) : null}
-
-        {/* Barre d'outils : Filtres par statut & Recherche */}
-        <div className="mt-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          {/* Onglets de statut */}
-          <div className="flex flex-wrap gap-2">
-            {[
-              { key: "ALL", label: "Toutes" },
-              { key: "PENDING", label: "En attente" },
-              { key: "CONFIRMED", label: "Confirmées" },
-              { key: "SHIPPED", label: "Expédiées" },
-              { key: "DELIVERED", label: "Livrées" },
-              { key: "CANCELLED", label: "Annulées" },
-            ].map((tab) => {
-              const active = statusFilter === tab.key;
-              const count = counts[tab.key] || 0;
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setStatusFilter(tab.key)}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
-                    active
-                      ? "bg-forest text-ivory shadow-sm"
-                      : "border border-gold/40 bg-ivory text-charcoal hover:bg-cream"
+      {/* Barre de filtrage & Recherche */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-ivory p-4 rounded-3xl border border-gold/40 shadow-xs">
+        {/* Filtres par statut */}
+        <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto">
+          {[
+            { key: "ALL", label: "Toutes" },
+            { key: "PENDING", label: "En attente" },
+            { key: "CONFIRMED", label: "Confirmées" },
+            { key: "SHIPPED", label: "Expédiées" },
+            { key: "DELIVERED", label: "Livrées" },
+            { key: "CANCELLED", label: "Annulées" },
+          ].map(({ key, label }) => {
+            const active = statusFilter === key;
+            const count = counts[key] || 0;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setStatusFilter(key)}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition ${
+                  active
+                    ? "bg-forest text-white shadow-xs font-semibold"
+                    : "text-muted hover:bg-cream hover:text-charcoal"
+                }`}
+              >
+                <span>{label}</span>
+                <span
+                  className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                    active ? "bg-white/20 text-white" : "bg-cream text-muted"
                   }`}
                 >
-                  <span>{tab.label}</span>
-                  <span
-                    className={`rounded-full px-1.5 py-0.2 text-[10px] ${
-                      active
-                        ? "bg-ivory/20 text-ivory"
-                        : "bg-sage/20 text-forest"
-                    }`}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Recherche */}
-          <div className="relative min-w-[260px]">
-            <Search
-              size={16}
-              className="absolute top-1/2 left-3 -translate-y-1/2 text-muted"
-            />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Rechercher (N°, client, ville, tél)..."
-              className="w-full rounded-full border border-gold/60 bg-ivory py-2 pr-4 pl-9 text-sm text-charcoal shadow-inner focus:outline-none focus:ring-1 focus:ring-forest"
-            />
-          </div>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Liste des commandes */}
-        {loadingOrders && orders.length === 0 ? (
-          <div className="mt-12">
-            <Loader label="Chargement des commandes..." />
-          </div>
-        ) : filteredOrders.length === 0 ? (
-          <div className="mt-10">
-            <EmptyState
-              icon={<Clock size={28} />}
-              title="Aucune commande trouvée"
-              description={
-                searchQuery
-                  ? "Aucune commande ne correspond à votre recherche."
-                  : statusFilter !== "ALL"
-                  ? `Aucune commande avec le statut "${STATUS_CONFIG[statusFilter]?.label || statusFilter}".`
-                  : "Aucune commande n'a encore été enregistrée."
-              }
-            >
-              {searchQuery || statusFilter !== "ALL" ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setStatusFilter("ALL");
-                    setSearchQuery("");
-                  }}
-                >
-                  Réinitialiser les filtres
-                </Button>
-              ) : null}
-            </EmptyState>
-          </div>
-        ) : (
-          <div className="mt-6 space-y-4">
-            {filteredOrders.map((order) => {
-              const statusCfg = STATUS_CONFIG[order.status] || STATUS_CONFIG.PENDING;
-              const StatusIcon = statusCfg.icon;
-              const isExpanded = Boolean(expandedOrders[order.id]);
-              const isActionLoading = actionLoadingId === order.id;
+        {/* Barre de recherche */}
+        <div className="relative md:w-72">
+          <Search
+            size={16}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted"
+          />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="N° commande, client, ville..."
+            className="w-full rounded-2xl border border-gold/50 bg-cream py-2 pl-9 pr-4 text-xs md:text-sm outline-none focus:border-forest transition"
+          />
+        </div>
+      </div>
 
-              return (
-                <article
-                  key={order.id}
-                  className="rounded-3xl border border-gold/40 bg-ivory p-5 shadow-sm transition hover:shadow-md sm:p-6"
-                >
-                  {/* Ligne principale : Réf, Date, Statut, Montant */}
-                  <div className="flex flex-col justify-between gap-3 border-b border-gold/20 pb-4 sm:flex-row sm:items-center">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        <span className="font-heading text-xl font-bold tracking-tight text-forest">
-                          {order.orderNumber}
-                        </span>
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-xs font-medium ${statusCfg.badgeClass}`}
-                        >
-                          <StatusIcon size={13} />
-                          <span>{statusCfg.label}</span>
-                        </span>
-                        {order.stockDeducted ? (
-                          <span className="rounded-full bg-forest/10 px-2.5 py-0.5 text-[10px] font-semibold text-forest">
-                            Stock déduit
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="mt-1 text-xs text-muted">
-                        Passée le {formatDate(order.createdAt)}
-                        {order.confirmedAt
-                          ? ` • Confirmée le ${formatDate(order.confirmedAt)}`
-                          : ""}
-                      </p>
-                    </div>
+      {/* Liste des commandes */}
+      {loadingOrders && orders.length === 0 ? (
+        <div className="py-20 flex justify-center">
+          <Loader label="Chargement des commandes..." />
+        </div>
+      ) : fetchError ? (
+        <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-center text-red-800 text-sm">
+          <AlertCircle size={24} className="mx-auto mb-2 text-red-600" />
+          <p>{fetchError}</p>
+          <Button onClick={fetchOrders} size="sm" className="mt-4">
+            Réessayer
+          </Button>
+        </div>
+      ) : filteredOrders.length === 0 ? (
+        <div className="rounded-3xl border border-gold/40 bg-ivory p-12 text-center shadow-xs">
+          <Clock size={40} className="mx-auto text-muted/60 mb-3" />
+          <h3 className="font-heading text-xl text-forest">
+            Aucune commande trouvée
+          </h3>
+          <p className="mt-1 text-xs text-muted max-w-sm mx-auto">
+            {searchQuery || statusFilter !== "ALL"
+              ? "Aucune commande ne correspond aux critères de recherche."
+              : "Aucune commande n'a encore été passée sur la boutique."}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredOrders.map((order) => {
+            const statusCfg = STATUS_CONFIG[order.status] || STATUS_CONFIG.PENDING;
+            const StatusIcon = statusCfg.icon;
+            const isExpanded = Boolean(expandedOrders[order.id]);
 
-                    <div className="text-left sm:text-right">
-                      <span className="block text-xs text-muted">Montant total</span>
-                      <span className="font-heading text-2xl font-bold text-forest">
+            return (
+              <article
+                key={order.id}
+                className="rounded-3xl border border-gold/40 bg-ivory p-5 shadow-xs transition hover:border-forest/50"
+              >
+                {/* Ligne principale */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gold/20 pb-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="font-mono text-sm md:text-base font-bold text-forest">
+                      {order.orderNumber}
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-xs font-semibold ${statusCfg.badgeClass}`}
+                    >
+                      <StatusIcon size={13} />
+                      {statusCfg.label}
+                    </span>
+                    <span className="text-xs text-muted">
+                      {formatDate(order.createdAt)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between md:justify-end gap-4">
+                    <div className="text-right">
+                      <span className="text-xs text-muted block">Total TTC</span>
+                      <span className="font-heading text-xl md:text-2xl font-bold text-forest">
                         {formatPrice(order.total)}
                       </span>
                     </div>
-                  </div>
 
-                  {/* Détails client & livraison */}
-                  <div className="mt-4 grid gap-4 text-xs sm:grid-cols-2 lg:grid-cols-3">
-                    <div>
-                      <span className="block font-semibold text-forest">Client</span>
-                      <p className="mt-0.5 font-medium text-charcoal">
-                        {order.customerName}
-                      </p>
-                      <p className="text-muted">{order.customerEmail}</p>
-                      <p className="text-muted">{order.customerPhone}</p>
-                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOrder(order)}
+                        className="flex items-center gap-1.5 rounded-xl border border-gold/50 bg-white px-3 py-1.5 text-xs font-semibold text-forest hover:bg-cream transition"
+                      >
+                        <Eye size={14} />
+                        Détails
+                      </button>
 
-                    <div>
-                      <span className="block font-semibold text-forest">
-                        Adresse de livraison
-                      </span>
-                      <p className="mt-0.5 text-charcoal">{order.address}</p>
-                      <p className="text-muted">
-                        Ville : <strong className="text-charcoal">{order.city}</strong>
-                      </p>
-                    </div>
-
-                    <div>
-                      <span className="block font-semibold text-forest">
-                        Détail des frais
-                      </span>
-                      <p className="mt-0.5 text-muted">
-                        Sous-total articles :{" "}
-                        <strong className="text-charcoal">
-                          {formatPrice(order.subtotal)}
-                        </strong>
-                      </p>
-                      <p className="text-muted">
-                        Frais de livraison :{" "}
-                        <strong className="text-charcoal">
-                          {formatPrice(order.deliveryFee)}
-                        </strong>
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Section repliable : Articles commandés */}
-                  {Array.isArray(order.items) && order.items.length > 0 ? (
-                    <div className="mt-4 border-t border-gold/20 pt-3">
                       <button
                         type="button"
                         onClick={() => toggleExpand(order.id)}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-forest transition hover:text-sage"
+                        className="p-1.5 rounded-xl border border-gold/40 hover:bg-cream text-muted transition"
+                        title={isExpanded ? "Replier" : "Déplier les articles"}
                       >
-                        <span>
-                          {isExpanded
-                            ? "Masquer les articles"
-                            : `Voir les articles commandés (${order.items.length})`}
-                        </span>
+                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                       </button>
-
-                      {isExpanded ? (
-                        <div className="mt-3 overflow-x-auto rounded-2xl border border-gold/30 bg-cream/50 p-3">
-                          <table className="w-full text-left text-xs">
-                            <thead>
-                              <tr className="border-b border-gold/30 text-muted">
-                                <th className="pb-2 font-medium">Article</th>
-                                <th className="pb-2 text-center font-medium">Qté</th>
-                                <th className="pb-2 text-right font-medium">
-                                  Prix unitaire
-                                </th>
-                                <th className="pb-2 text-right font-medium">
-                                  Total ligne
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gold/10">
-                              {order.items.map((item) => (
-                                <tr key={item.id || item.productId}>
-                                  <td className="py-2 font-medium text-forest">
-                                    <Link
-                                      to={`/produit/${item.productId}`}
-                                      className="hover:underline"
-                                    >
-                                      {item.productName}
-                                    </Link>
-                                  </td>
-                                  <td className="py-2 text-center text-charcoal">
-                                    {item.quantity}
-                                  </td>
-                                  <td className="py-2 text-right text-muted">
-                                    {formatPrice(item.unitPrice)}
-                                  </td>
-                                  <td className="py-2 text-right font-semibold text-charcoal">
-                                    {formatPrice(item.lineTotal)}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {/* Actions d'administration selon le cycle de vie */}
-                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-gold/20 pt-4">
-                    <span className="text-xs text-muted">
-                      {isActionLoading
-                        ? "Mise à jour en cours..."
-                        : `Réf : ${order.id}`}
-                    </span>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      {/* Action 1 : Confirmation (PENDING -> CONFIRMED, déduit le stock) */}
-                      {order.status === "PENDING" ? (
-                        <Button
-                          size="sm"
-                          disabled={isActionLoading}
-                          onClick={() => handleConfirm(order)}
-                          className="bg-forest text-ivory hover:bg-forest-dark"
-                        >
-                          <CheckCircle2 size={15} />
-                          <span>Confirmer la commande</span>
-                        </Button>
-                      ) : null}
-
-                      {/* Action 2 : Expédition (CONFIRMED -> SHIPPED) */}
-                      {order.status === "CONFIRMED" ? (
-                        <Button
-                          size="sm"
-                          disabled={isActionLoading}
-                          onClick={() => handleUpdateStatus(order, "SHIPPED")}
-                          className="bg-blue-800 text-ivory hover:bg-blue-900"
-                        >
-                          <Truck size={15} />
-                          <span>Marquer comme expédiée</span>
-                        </Button>
-                      ) : null}
-
-                      {/* Action 3 : Livraison (SHIPPED -> DELIVERED) */}
-                      {order.status === "SHIPPED" ? (
-                        <Button
-                          size="sm"
-                          disabled={isActionLoading}
-                          onClick={() => handleUpdateStatus(order, "DELIVERED")}
-                          className="bg-emerald-800 text-ivory hover:bg-emerald-900"
-                        >
-                          <PackageCheck size={15} />
-                          <span>Marquer comme livrée</span>
-                        </Button>
-                      ) : null}
-
-                      {/* Action 4 : Annulation (possible depuis PENDING ou CONFIRMED) */}
-                      {order.status === "PENDING" || order.status === "CONFIRMED" ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={isActionLoading}
-                          onClick={() => handleCancel(order)}
-                          className="border-red-300 text-red-700 hover:bg-red-50"
-                        >
-                          <XCircle size={15} />
-                          <span>Annuler la commande</span>
-                        </Button>
-                      ) : null}
                     </div>
                   </div>
-                </article>
-              );
-            })}
+                </div>
+
+                {/* Coordonnées & Boutons d'actions */}
+                <div className="pt-4 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs md:text-sm">
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-charcoal/80">
+                    <span className="font-medium text-charcoal">
+                      Cliente : <strong>{order.customerName}</strong>
+                    </span>
+                    <a
+                      href={`tel:${order.customerPhone}`}
+                      className="flex items-center gap-1 hover:text-forest transition"
+                    >
+                      <Phone size={13} className="text-muted" />
+                      {order.customerPhone}
+                    </a>
+                    <span className="flex items-center gap-1">
+                      <MapPin size={13} className="text-muted" />
+                      {order.city} — {order.address}
+                    </span>
+                  </div>
+
+                  {/* Boutons d'actions contextuels */}
+                  <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+                    {order.status === "PENDING" && (
+                      <button
+                        type="button"
+                        onClick={() => requestConfirm(order)}
+                        className="rounded-xl bg-forest px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-forest-dark transition"
+                      >
+                        Confirmer la commande
+                      </button>
+                    )}
+
+                    {order.status === "CONFIRMED" && (
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateStatus(order, "SHIPPED")}
+                        className="rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition"
+                      >
+                        Passer à Expédiée
+                      </button>
+                    )}
+
+                    {order.status === "SHIPPED" && (
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateStatus(order, "DELIVERED")}
+                        className="rounded-xl bg-emerald-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 transition"
+                      >
+                        Marquer Livrée
+                      </button>
+                    )}
+
+                    {["PENDING", "CONFIRMED"].includes(order.status) && (
+                      <button
+                        type="button"
+                        onClick={() => requestCancel(order)}
+                        className="rounded-xl border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 transition"
+                      >
+                        Annuler
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Section dépliée : articles */}
+                {isExpanded && (
+                  <div className="mt-4 pt-4 border-t border-gold/20 animate-fadeIn">
+                    <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+                      Articles commandés ({order.items?.length || 0})
+                    </h4>
+                    <div className="divide-y divide-gold/15 bg-cream/40 rounded-2xl p-3 border border-gold/30">
+                      {order.items?.map((item) => (
+                        <div
+                          key={item.id}
+                          className="py-2 flex items-center justify-between text-xs"
+                        >
+                          <div>
+                            <span className="font-medium text-charcoal">
+                              {item.productName}
+                            </span>
+                            <span className="text-muted ml-2">
+                              × {item.quantity} ({formatPrice(item.unitPrice)} / u)
+                            </span>
+                          </div>
+                          <span className="font-semibold text-forest">
+                            {formatPrice(item.lineTotal)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {/* =========================================
+          MODALE DE DÉTAIL D'UNE COMMANDE
+      ========================================= */}
+      {selectedOrder && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal/50 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border border-gold/40 bg-ivory p-6 md:p-8 shadow-xl animate-scaleIn space-y-6">
+            <div className="flex items-start justify-between border-b border-gold/30 pb-4">
+              <div>
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+                  Détail de commande
+                </span>
+                <h3 className="font-heading text-2xl md:text-3xl font-bold text-forest mt-0.5">
+                  {selectedOrder.orderNumber}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedOrder(null)}
+                className="text-muted hover:text-charcoal p-1.5 rounded-lg hover:bg-cream"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Coordonnées Client & Statut */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs md:text-sm">
+              <div className="rounded-2xl border border-gold/30 bg-cream/40 p-4 space-y-2">
+                <span className="text-[11px] font-semibold text-muted uppercase tracking-wider block">
+                  Informations Cliente
+                </span>
+                <p className="font-bold text-charcoal text-base">
+                  {selectedOrder.customerName}
+                </p>
+                <p className="flex items-center gap-2 text-charcoal/80">
+                  <Phone size={14} className="text-muted" />
+                  <a href={`tel:${selectedOrder.customerPhone}`} className="hover:underline text-forest">
+                    {selectedOrder.customerPhone}
+                  </a>
+                </p>
+                <p className="flex items-center gap-2 text-charcoal/80">
+                  <Mail size={14} className="text-muted" />
+                  {selectedOrder.customerEmail}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-gold/30 bg-cream/40 p-4 space-y-2">
+                <span className="text-[11px] font-semibold text-muted uppercase tracking-wider block">
+                  Livraison & Date
+                </span>
+                <p className="flex items-start gap-2 text-charcoal">
+                  <MapPin size={15} className="text-muted shrink-0 mt-0.5" />
+                  <span>
+                    <strong>{selectedOrder.city}</strong> — {selectedOrder.address}
+                  </span>
+                </p>
+                <p className="text-xs text-muted mt-2">
+                  Passée le : {formatDate(selectedOrder.createdAt)}
+                </p>
+                <div className="pt-2">
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-xs font-semibold ${
+                      STATUS_CONFIG[selectedOrder.status]?.badgeClass
+                    }`}
+                  >
+                    {STATUS_CONFIG[selectedOrder.status]?.label || selectedOrder.status}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Articles commandés */}
+            <div>
+              <h4 className="font-heading text-lg font-bold text-forest mb-3">
+                Articles commandés
+              </h4>
+              <div className="rounded-2xl border border-gold/30 bg-white overflow-hidden">
+                <table className="w-full text-left text-xs md:text-sm">
+                  <thead className="bg-cream/60 border-b border-gold/20 text-muted uppercase text-[10px]">
+                    <tr>
+                      <th className="p-3">Produit</th>
+                      <th className="p-3 text-center">Quantité</th>
+                      <th className="p-3 text-right">Prix Unitaire</th>
+                      <th className="p-3 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gold/15">
+                    {selectedOrder.items?.map((item) => (
+                      <tr key={item.id}>
+                        <td className="p-3 font-medium text-charcoal">
+                          {item.productName}
+                        </td>
+                        <td className="p-3 text-center font-semibold">
+                          {item.quantity}
+                        </td>
+                        <td className="p-3 text-right text-muted">
+                          {formatPrice(item.unitPrice)}
+                        </td>
+                        <td className="p-3 text-right font-semibold text-forest">
+                          {formatPrice(item.lineTotal)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Récapitulatif Financier */}
+            <div className="rounded-2xl border border-gold/30 bg-cream/40 p-4 space-y-2 text-xs md:text-sm">
+              <div className="flex justify-between text-charcoal/80">
+                <span>Sous-total articles :</span>
+                <span className="font-semibold">{formatPrice(selectedOrder.subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-charcoal/80">
+                <span>Frais de livraison ({selectedOrder.city}) :</span>
+                <span className="font-semibold">{formatPrice(selectedOrder.deliveryFee)}</span>
+              </div>
+              <div className="flex justify-between border-t border-gold/30 pt-2 text-base font-bold text-forest">
+                <span>Total TTC :</span>
+                <span className="font-heading text-xl">{formatPrice(selectedOrder.total)}</span>
+              </div>
+            </div>
+
+            {/* Actions dans la modale */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gold/30">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedOrder(null)}
+              >
+                Fermer
+              </Button>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {selectedOrder.status === "PENDING" && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const ord = selectedOrder;
+                      setSelectedOrder(null);
+                      requestConfirm(ord);
+                    }}
+                  >
+                    Confirmer la commande
+                  </Button>
+                )}
+
+                {selectedOrder.status === "CONFIRMED" && (
+                  <Button
+                    size="sm"
+                    onClick={() => handleUpdateStatus(selectedOrder, "SHIPPED")}
+                  >
+                    Marquer Expédiée
+                  </Button>
+                )}
+
+                {["PENDING", "CONFIRMED"].includes(selectedOrder.status) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ord = selectedOrder;
+                      setSelectedOrder(null);
+                      requestCancel(ord);
+                    }}
+                    className="rounded-xl border border-red-200 px-3.5 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 transition"
+                  >
+                    Annuler la commande
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
-        )}
-      </PageContainer>
-    </section>
+        </div>
+      )}
+
+      {/* Modale de Confirmation dynamique */}
+      <ConfirmationModal
+        isOpen={modalConfig.isOpen}
+        onClose={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={modalConfig.onConfirm}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        confirmText={modalConfig.confirmText}
+        variant={modalConfig.variant}
+        loading={modalLoading}
+      />
+
+      {/* Notification Toast */}
+      <ToastNotification toast={toast} onDismiss={() => setToast(null)} />
+    </div>
   );
 }

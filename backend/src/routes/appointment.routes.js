@@ -1,84 +1,25 @@
-
 import { Router } from "express";
 import { appointmentController } from "../controllers/appointment.controller.js";
+import { authMiddleware } from "../middlewares/auth.middleware.js";
 
 const appointmentRoutes = Router();
+export const adminAppointmentRouter = Router();
 
-/**
- * @swagger
- * tags:
- *   - name: Réservations
- *     description: Gestion des réservations de services sans compte
- */
-
-/**
- * @swagger
- * /api/appointments:
- *   post:
- *     tags: [Réservations]
- *     summary: Réserver un créneau sans compte
- *     description: >
- *       Crée une réservation avec le statut PENDING.
- *       Une réservation PENDING bloque immédiatement le créneau.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - slotId
- *               - customerName
- *               - phone
- *             properties:
- *               slotId:
- *                 type: string
- *                 format: uuid
- *               customerName:
- *                 type: string
- *                 example: Sara El Amrani
- *               phone:
- *                 type: string
- *                 example: "0612345678"
- *     responses:
- *       201:
- *         description: Réservation créée avec succès
- *       400:
- *         description: Données invalides
- *       404:
- *         description: Créneau introuvable
- *       409:
- *         description: Créneau déjà réservé ou indisponible
- */
-appointmentRoutes.post(
-  "/",
-  appointmentController.create
-);
-
-/**
- * @swagger
- * /api/appointments/available-slots/{serviceId}:
- *   get:
- *     tags: [Réservations]
- *     summary: Consulter les créneaux disponibles d'un service
- *     parameters:
- *       - in: path
- *         name: serviceId
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *     responses:
- *       200:
- *         description: Liste des créneaux disponibles
- *       400:
- *         description: Identifiant invalide
- *       404:
- *         description: Service introuvable ou inactif
- */
+// Routes publiques
+appointmentRoutes.get("/available-dates", appointmentController.availableDates);
+appointmentRoutes.get("/available-slots", appointmentController.slotsForDate);
+appointmentRoutes.post("/", appointmentController.create);
 appointmentRoutes.get(
   "/available-slots/:serviceId",
   appointmentController.availableSlots
 );
+
+// Routes administration
+adminAppointmentRouter.use(authMiddleware);
+adminAppointmentRouter.get("/", appointmentController.list);
+adminAppointmentRouter.get("/:id", appointmentController.getById);
+adminAppointmentRouter.patch("/:id/status", appointmentController.updateStatus);
+adminAppointmentRouter.post("/:id/confirm", appointmentController.confirm);
+adminAppointmentRouter.post("/:id/cancel", appointmentController.cancel);
 
 export default appointmentRoutes;

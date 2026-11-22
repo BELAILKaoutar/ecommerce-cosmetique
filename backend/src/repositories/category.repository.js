@@ -1,9 +1,26 @@
-
 import prisma from "../config/prisma.js";
+
+const categoryInclude = {
+  _count: {
+    select: { products: true },
+  },
+  products: {
+    select: {
+      id: true,
+      name: true,
+      price: true,
+      stock: true,
+      imageUrl: true,
+      isActive: true,
+    },
+    orderBy: { name: "asc" },
+  },
+};
 
 export const categoryRepository = {
   findAll() {
     return prisma.category.findMany({
+      include: categoryInclude,
       orderBy: { name: "asc" },
     });
   },
@@ -11,6 +28,7 @@ export const categoryRepository = {
   findById(id) {
     return prisma.category.findUnique({
       where: { id },
+      include: categoryInclude,
     });
   },
 
@@ -23,6 +41,7 @@ export const categoryRepository = {
   create(data) {
     return prisma.category.create({
       data,
+      include: categoryInclude,
     });
   },
 
@@ -30,6 +49,7 @@ export const categoryRepository = {
     return prisma.category.update({
       where: { id },
       data,
+      include: categoryInclude,
     });
   },
 

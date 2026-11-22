@@ -1,8 +1,7 @@
-
-import { Navigate, Outlet, useLocation } from "react-router-dom";
-
+import { Navigate, useLocation } from "react-router-dom";
 import { useAdminAuth } from "../../context/AdminAuthContext";
-import AdminNavigation from "./AdminNavigation";
+import AdminLayout from "./AdminLayout";
+import Loader from "../ui/Loader";
 
 export default function ProtectedAdminRoute() {
   const { isAuthenticated, loading } = useAdminAuth();
@@ -11,7 +10,7 @@ export default function ProtectedAdminRoute() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-cream">
-        Vérification de la connexion...
+        <Loader label="Vérification de la session administrateur..." />
       </div>
     );
   }
@@ -19,20 +18,12 @@ export default function ProtectedAdminRoute() {
   if (!isAuthenticated) {
     return (
       <Navigate
-        to="/admin/login"
+        to="/login"
         state={{ from: location }}
         replace
       />
     );
   }
 
-  return (
-    <div className="min-h-screen bg-cream text-charcoal">
-      <AdminNavigation />
-
-      <main id="contenu">
-        <Outlet />
-      </main>
-    </div>
-  );
+  return <AdminLayout />;
 }

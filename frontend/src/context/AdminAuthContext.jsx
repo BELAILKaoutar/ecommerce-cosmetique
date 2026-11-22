@@ -20,7 +20,13 @@ export function AdminAuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // Appel serveur pour invalider la session (best-effort)
+    try {
+      await client.post("/api/auth/logout");
+    } catch {
+      // Ignorer les erreurs réseau — on déconnecte quand même côté client
+    }
     localStorage.removeItem(ADMIN_TOKEN_KEY);
     setAuthToken(null);
     setToken(null);
