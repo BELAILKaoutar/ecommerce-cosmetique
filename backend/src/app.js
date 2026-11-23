@@ -36,9 +36,22 @@ import stockRoutes from "./routes/stock.routes.js";
 
 const app = express();
 
+const allowedOrigins = (
+  process.env.FRONTEND_ORIGIN || "http://localhost:5173"
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_ORIGIN || "http://localhost:5173",
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Origine CORS non autorisée"));
+    },
     credentials: true,
   })
 );
@@ -50,15 +63,17 @@ app.use(
   express.static(path.resolve("uploads"))
 );
 
-app.use(
-  "/api-docs",
-  swaggerUi.serve,
-  swaggerUi.setup(swaggerSpec, {
-    swaggerOptions: {
-      persistAuthorization: true,
-    },
-  })
-);
+if (process.env.NODE_ENV !== "production") {
+  app.use(
+    "/api-docs",
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec, {
+      swaggerOptions: {
+        persistAuthorization: true,
+      },
+    })
+  );
+}
 
 app.get("/", (req, res) => {
   res.status(200).json({
@@ -66,7 +81,11 @@ app.get("/", (req, res) => {
     status: "OK",
   });
 });
-
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "OK",
+  });
+});
 app.use("/api/auth", authRoutes);
 
 app.use("/api/categories", categoryRoutes);
