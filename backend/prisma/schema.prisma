@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,18 +8,16 @@ datasource db {
 }
 
 model Category {
-  id          String    @id @default(uuid()) @db.Uuid
-  name        String    @unique @db.VarChar(100)
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(100)
   description String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  products    Product[]
+  products Product[]
 
   @@map("categories")
 }
-
-
 
 model Product {
   id          String   @id @default(uuid()) @db.Uuid
@@ -30,12 +29,141 @@ model Product {
   imageUrl    String?
   isActive    Boolean  @default(true)
 
-  categoryId  String   @db.Uuid
-  category    Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  categoryId String   @db.Uuid
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderItems OrderItem[]
 
   @@index([categoryId])
   @@map("products")
 }
+
+model Admin {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique @db.VarChar(255)
+  passwordHash String
+  name         String?  @db.VarChar(100)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("admins")
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model Order {
+  id            String      @id @default(uuid()) @db.Uuid
+  orderNumber   String      @unique @db.VarChar(40)
+  customerName  String      @db.VarChar(200)
+  customerEmail String      @db.VarChar(255)
+  customerPhone String      @db.VarChar(30)
+  address       String
+  city          String      @db.VarChar(120)
+  subtotal      Decimal     @db.Decimal(10, 2)
+  deliveryFee   Decimal     @db.Decimal(10, 2)
+  total         Decimal     @db.Decimal(10, 2)
+  status        OrderStatus @default(PENDING)
+  stockDeducted Boolean     @default(false)
+  confirmedAt   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  items OrderItem[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String  @id @default(uuid()) @db.Uuid
+  orderId     String  @db.Uuid
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String  @db.Uuid
+  product     Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productName String  @db.VarChar(200)
+  quantity    Int
+  unitPrice   Decimal @db.Decimal(10, 2)
+  lineTotal   Decimal @db.Decimal(10, 2)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+model Service {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String   @db.VarChar(200)
+  description     String?
+  durationMinutes Int?
+  price           Decimal? @db.Decimal(10, 2)
+  isActive        Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointmentSlots AppointmentSlot[]
+
+  @@map("services")
+}
+
+
+model AppointmentSlot {
+  id        String  @id @default(uuid()) @db.Uuid
+
+  serviceId String  @db.Uuid
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  startAt   DateTime
+  endAt     DateTime
+  capacity  Int      @default(1)
+  isActive  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointments Appointment[]
+
+  @@index([serviceId])
+  @@index([startAt])
+  @@index([serviceId, startAt])
+  @@map("appointment_slots")
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+model Appointment {
+  id           String            @id @default(uuid()) @db.Uuid
+  slotId       String            @db.Uuid
+  slot         AppointmentSlot   @relation(fields: [slotId], references: [id], onDelete: Restrict)
+
+  customerName String            @db.VarChar(200)
+  phone        String            @db.VarChar(30)
+  status       AppointmentStatus @default(PENDING)
+  serviceType  String            @default("CENTRE") @db.VarChar(10)
+  address      String?           @db.Text
+  notes        String?           @db.Text
+  expiresAt    DateTime?
+
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([slotId])
+  @@index([status])
+  @@map("appointments")
+}
+

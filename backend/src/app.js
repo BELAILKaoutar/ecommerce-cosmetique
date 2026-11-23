@@ -1,28 +1,113 @@
-
 import express from "express";
+import cors from "cors";
+import swaggerUi from "swagger-ui-express";
+
+import { swaggerSpec } from "./config/swagger.js";
+
 import categoryRoutes from "./routes/category.routes.js";
 import productRoutes from "./routes/product.routes.js";
+import authRoutes from "./routes/auth.routes.js";
+
+import {
+  adminOrderRouter,
+  publicOrderRouter,
+} from "./routes/order.routes.js";
+
+import {
+  publicServiceRouter,
+  adminServiceRouter,
+} from "./routes/service.routes.js";
+
+import {
+  publicAppointmentSlotRouter,
+  adminAppointmentSlotRouter,
+} from "./routes/appointment-slot.routes.js";
+
+import appointmentRoutes, {
+  adminAppointmentRouter,
+} from "./routes/appointment.routes.js";
+
+import dashboardRoutes from "./routes/dashboard.routes.js";
+
 import { errorMiddleware } from "./middlewares/error.middleware.js";
+import path from "node:path";
+import uploadRoutes from "./routes/upload.routes.js";
+import stockRoutes from "./routes/stock.routes.js";
 
 const app = express();
 
+const allowedOrigins = (
+  process.env.FRONTEND_ORIGIN || "http://localhost:5173"
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Origine CORS non autorisée"));
+    },
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
-// Route d'accueil
+app.use(
+  "/uploads",
+  express.static(path.resolve("uploads"))
+);
+
+if (process.env.NODE_ENV !== "production") {
+  app.use(
+    "/api-docs",
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec, {
+      swaggerOptions: {
+        persistAuthorization: true,
+      },
+    })
+  );
+}
+
 app.get("/", (req, res) => {
   res.status(200).json({
     message: "Bienvenue sur l'API E-commerce Cosmétique",
     status: "OK",
   });
 });
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "OK",
+  });
+});
+app.use("/api/auth", authRoutes);
 
-// Routes des catégories
 app.use("/api/categories", categoryRoutes);
-
-// Routes des produits
 app.use("/api/products", productRoutes);
+app.use("/api/stock", stockRoutes);
+app.use("/api/uploads", uploadRoutes);
 
-// Gestion des erreurs
+app.use("/api/orders", publicOrderRouter);
+app.use("/api/admin/orders", adminOrderRouter);
+
+app.use("/api/services", publicServiceRouter);
+app.use("/api/admin/services", adminServiceRouter);
+
+app.use("/api/appointment-slots", publicAppointmentSlotRouter);
+app.use("/api/admin/appointment-slots", adminAppointmentSlotRouter);
+
+app.use("/api/appointments", appointmentRoutes);
+app.use("/api/admin/appointments", adminAppointmentRouter);
+
+app.use("/api/admin/dashboard", dashboardRoutes);
+app.use("/api/admin/stats", dashboardRoutes);
+
 app.use(errorMiddleware);
 
 export default app;
