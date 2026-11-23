@@ -6,7 +6,7 @@ import CategoryFilter from "../components/categories/CategoryFilter";
 import ProductCard from "../components/products/ProductCard";
 
 const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+  import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export default function Shop() {
   const [categories, setCategories] = useState([]);
@@ -78,8 +78,7 @@ export default function Shop() {
           params.set("categoryId", selectedCategory);
         }
 
-        const url = `${API_URL}/products?${params.toString()}`;
-
+        const url = `${API_URL}/api/products?${params.toString()}`;
         const response = await fetch(url, {
           signal: controller.signal,
         });
